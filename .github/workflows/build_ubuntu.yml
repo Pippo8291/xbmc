@@ -1,0 +1,125 @@
+name: Build Kodi on Linux
+
+on:
+  push:
+    branches:
+      - Omega
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    env:
+      CMAKE_INSTALL_PREFIX: /usr/local
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Add Kodi Nightly PPA
+        run: |
+          sudo add-apt-repository -s ppa:team-xbmc/xbmc-nightly
+          sudo apt-get update
+
+      - name: Get build dependencies automatically
+        run: sudo apt-get build-dep -y kodi
+
+      - name: Install ccache (recommended for developers)
+        run: sudo apt-get install -y ccache
+
+      - name: Install optional build tools (doxygen, etc.)
+        run: sudo apt-get install -y doxygen libcap-dev libsndio-dev libmariadbd-dev
+
+      - name: Install Wayland/GBM packages (if needed)
+        run: |
+          sudo apt-get install -y libglew-dev libwayland-dev libxkbcommon-dev waylandpp-dev wayland-protocols
+          sudo apt-get install -y libgbm-dev libinput-dev
+
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake autopoint gettext autotools-dev cmake curl \
+            default-jre gawk gcc g++ cpp libflatbuffers-dev gdc git libasound2-dev \
+            libavahi-client-dev libavcodec-dev libavfilter-dev libavformat-dev \
+            libavutil-dev libbluray-dev libbz2-dev libcdio-dev libcec-dev \
+            libcrossguid-dev libcurl4-openssl-dev libdbus-1-dev libdrm-dev \
+            libegl1-mesa-dev libenca-dev libfmt-dev libfreetype6-dev \
+            libfribidi-dev libgcrypt20-dev libgif-dev libglew-dev libiso9660-dev \
+            libjpeg-dev liblcms2-dev liblirc-dev libltdl-dev libmicrohttpd-dev \
+            libmodplug-dev libmp3lame-dev libmpeg2-4-dev libmysqlclient-dev \
+            libnfs-dev libogg-dev libp8-platform-dev libplist-dev libpng-dev \
+            libpulse-dev libsamplerate0-dev libsmbclient-dev libspdlog-dev \
+            libsqlite3-dev libssl-dev libswscale-dev libtag1-dev libtiff-dev \
+            libtinyxml-dev libtool libudev-dev libusb-1.0-0-dev libva-dev \
+            libvdpau-dev libvorbis-dev libxkbcommon-dev libxmu-dev libxrandr-dev \
+            libxslt1-dev libxt-dev python3-dev rapidjson-dev uuid-dev \
+            wayland-protocols libwayland-dev libwayland-egl1-mesa \
+            zlib1g-dev scons
+
+      - name: Create out-of-source build directory
+        run: mkdir -p $HOME/kodi-build
+
+      - name: Configure build (X11 platform)
+        run: |
+          cd $HOME/kodi-build
+          cmake $GITHUB_WORKSPACE -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DCORE_PLATFORM_NAME=x11 -DAPP_RENDER_SYSTEM=gl
+
+      - name: Build Kodi
+        run: |
+          cd $HOME/kodi-build
+          cmake --build . -- VERBOSE=1 -j$(nproc)
+
+      - name: Install Kodi to staging directory
+        run: |
+          mkdir -p $HOME/package-root/usr/local
+          cd $HOME/kodi-build
+          make DESTDIR=$HOME/package-root install
+
+      - name: Extract Kodi version from version.txt
+        id: kodi_version
+        run: |
+          VERSION_MAJOR=$(grep '^VERSION_MAJOR' version.txt | awk '{print $2}')
+          VERSION_MINOR=$(grep '^VERSION_MINOR' version.txt | awk '{print $2}')
+          VERSION_TAG=$(grep '^VERSION_TAG' version.txt | awk '{print $2}')
+          echo "VERSION=${VERSION_MAJOR}.${VERSION_MINOR}-${VERSION_TAG}" >> $GITHUB_ENV
+
+      - name: Create DEBIAN control file
+        run: |
+          mkdir -p $HOME/package-root/DEBIAN
+          cat <<EOF > $HOME/package-root/DEBIAN/control
+          Package: kodi
+          Version: $VERSION
+          Section: misc
+          Priority: optional
+          Architecture: amd64
+          Depends: libavcodec58, libavformat58, libswscale5
+          Maintainer: Pippo8291 <your@email.com>
+          Description: Kodi media center (built from CI)
+          EOF
+
+      - name: Build .deb package
+        run: |
+          dpkg-deb --build $HOME/package-root $HOME/kodi_${VERSION}_amd64.deb
+
+      - name: Upload deb package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodi-deb
+          path: $HOME/kodi_${VERSION}_amd64.deb
+
+      # Optional: Install step (requires sudo)
+      # - name: Install Kodi
+      #   run: |
+      #     cd $HOME/kodi-build
+      #     sudo make install
+
+      # Optional: Run test suite
+      # - name: Run Kodi Test Suite
+      #   run: |
+      #     cd $HOME/kodi-build
+      #     make check
