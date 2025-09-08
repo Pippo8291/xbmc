@@ -106,20 +106,14 @@ jobs:
         run: |
           dpkg-deb --build $HOME/package-root $HOME/kodi_${VERSION}_amd64.deb
 
+      - name: List files in $HOME
+        run: ls -l $HOME
+
       - name: Upload deb package as artifact
         uses: actions/upload-artifact@v4
         with:
           name: kodi-deb
           path: $HOME/kodi_${VERSION}_amd64.deb
 
-      # Optional: Install step (requires sudo)
-      # - name: Install Kodi
-      #   run: |
-      #     cd $HOME/kodi-build
-      #     sudo make install
-
-      # Optional: Run test suite
-      # - name: Run Kodi Test Suite
-      #   run: |
-      #     cd $HOME/kodi-build
-      #     make check
+      - name: List files in $HOME
+        run: ls -l $HOME
