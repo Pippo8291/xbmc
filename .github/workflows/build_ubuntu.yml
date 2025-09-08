@@ -69,6 +69,19 @@ jobs:
           cd $HOME/kodi-build
           cmake $GITHUB_WORKSPACE -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DCORE_PLATFORM_NAME=x11 -DAPP_RENDER_SYSTEM=gl
 
+      - name: Extract Kodi version from version.txt
+        id: kodi_version
+        run: |
+          VERSION_MAJOR=$(grep '^VERSION_MAJOR' version.txt | awk '{print $2}')
+          VERSION_MINOR=$(grep '^VERSION_MINOR' version.txt | awk '{print $2}')
+          VERSION_TAG=$(grep '^VERSION_TAG' version.txt | awk '{print $2}')
+          if [ -n "$VERSION_TAG" ]; then
+            VERSION="${VERSION_MAJOR}.${VERSION_MINOR}-$VERSION_TAG"
+          else
+            VERSION="${VERSION_MAJOR}.${VERSION_MINOR}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Build Kodi
         run: |
           cd $HOME/kodi-build
@@ -79,14 +92,6 @@ jobs:
           mkdir -p $HOME/package-root/usr/local
           cd $HOME/kodi-build
           make DESTDIR=$HOME/package-root install
-
-      - name: Extract Kodi version from version.txt
-        id: kodi_version
-        run: |
-          VERSION_MAJOR=$(grep '^VERSION_MAJOR' version.txt | awk '{print $2}')
-          VERSION_MINOR=$(grep '^VERSION_MINOR' version.txt | awk '{print $2}')
-          VERSION_TAG=$(grep '^VERSION_TAG' version.txt | awk '{print $2}')
-          echo "VERSION=${VERSION_MAJOR}.${VERSION_MINOR}-${VERSION_TAG}" >> $GITHUB_ENV
 
       - name: Create DEBIAN control file
         run: |
@@ -108,6 +113,9 @@ jobs:
 
       - name: List files in $HOME
         run: ls -l $HOME
+
+      - name: List DEB files everywhere
+        run: find /home/runner -name '*.deb'
 
       - name: Upload deb package as artifact
         uses: actions/upload-artifact@v4
