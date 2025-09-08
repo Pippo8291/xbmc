@@ -122,7 +122,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kodi-deb
-          path: $HOME/kodi_${{ env.VERSION }}_amd64.deb
+          path: /home/runner/kodi_${{ env.VERSION }}_amd64.deb
 
 
       - name: List files in $HOME
